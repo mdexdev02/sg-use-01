@@ -7,6 +7,34 @@ import { getActiveTournament, getMatches, initializeTournament, completeTourname
 
 const GUEST_NAME = `날씨인#${Math.floor(Math.random() * 9000) + 1000}`
 
+// ─── Session persistence ──────────────────────────────────────────────────────
+function sessionKey(tournamentId) {
+  return `wc_session_${tournamentId}`
+}
+
+function saveSession(tournamentId, matchIdx, groups) {
+  try {
+    localStorage.setItem(sessionKey(tournamentId), JSON.stringify({ matchIdx, groups }))
+  } catch (e) {
+    // localStorage 용량 초과 등 무시
+  }
+}
+
+function loadSession(tournamentId) {
+  try {
+    const raw = localStorage.getItem(sessionKey(tournamentId))
+    return raw ? JSON.parse(raw) : null
+  } catch (e) {
+    return null
+  }
+}
+
+function clearSession(tournamentId) {
+  try {
+    localStorage.removeItem(sessionKey(tournamentId))
+  } catch (e) {}
+}
+
 // 매치 목록에서 조별 순위표 계산
 function buildGroups(matches) {
   const groupMap = new Map()
@@ -91,7 +119,14 @@ export default function WorldCup() {
     const raw = await getMatches(active.id)
     const matches = raw.map(normalizeMatch)
     setAllMatches(matches)
-    setGroups(buildGroups(matches))
+
+    const saved = loadSession(active.id)
+    if (saved) {
+      setCurrentMatchIdx(saved.matchIdx)
+      setGroups(saved.groups)
+    } else {
+      setGroups(buildGroups(matches))
+    }
   }
 
   async function handlePotSetupComplete(potAssignments) {
@@ -114,6 +149,7 @@ export default function WorldCup() {
     if (tournament) {
       try {
         await completeTournament(tournament.id)
+        clearSession(tournament.id)
       } catch (e) {
         console.error(e)
       }
@@ -127,10 +163,11 @@ export default function WorldCup() {
 
   const handleVoted = useCallback(
     (side) => {
+      const match = allMatches[currentMatchIdx]
+      if (!match) return
+
       setGroups((prev) => {
-        const match = allMatches[currentMatchIdx]
-        if (!match) return prev
-        return prev.map((g) => {
+        const updated = prev.map((g) => {
           if (g.id !== match.group_id) return g
           return {
             ...g,
@@ -150,12 +187,15 @@ export default function WorldCup() {
             }),
           }
         })
+        const nextIdx = Math.min(currentMatchIdx + 1, allMatches.length - 1)
+        if (tournament) saveSession(tournament.id, nextIdx, updated)
+        return updated
       })
       setTimeout(() => {
         setCurrentMatchIdx((i) => Math.min(i + 1, allMatches.length - 1))
       }, 1500)
     },
-    [allMatches, currentMatchIdx]
+    [allMatches, currentMatchIdx, tournament]
   )
 
   const progress = allMatches.length > 0 ? (currentMatchIdx / allMatches.length) * 100 : 0

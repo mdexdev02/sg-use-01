@@ -53,15 +53,41 @@ export async function initializeTournament(name, potAssignments = null) {
 
   // 포트 배정이 있으면 FIFA식 조 추첨 (각 조에 포트별 1팀씩)
   // 없으면 기존 랜덤 셔플
+  // 강수계열 최대 2팀, 나머지 계열 최대 1팀 제약 조건 적용
+  const RAIN_CATEGORY = '강수 계열'
+  const MAX_RAIN = 2
+  const MAX_OTHER_CATEGORY = 1
+
+  function groupSatisfiesConstraints(groupTeams) {
+    const rainCount = groupTeams.filter((t) => t.category === RAIN_CATEGORY).length
+    if (rainCount > MAX_RAIN) return false
+    const nonRainCats = groupTeams.filter((t) => t.category !== RAIN_CATEGORY).map((t) => t.category)
+    return new Set(nonRainCats).size === nonRainCats.length
+  }
+
+  function buildGroupTeamsArray(pots) {
+    for (let attempt = 0; attempt < 300; attempt++) {
+      const shuffledPots = pots.map((pot) => [...pot].sort(() => Math.random() - 0.5))
+      const candidate = Array.from({ length: groupCount }, (_, i) =>
+        shuffledPots.map((pot) => pot[i]).filter(Boolean)
+      )
+      if (candidate.every(groupSatisfiesConstraints)) {
+        return candidate.map((g) => g.sort(() => Math.random() - 0.5))
+      }
+    }
+    // 300회 시도 후 제약 없이 반환 (최후 수단)
+    const shuffledPots = pots.map((pot) => [...pot].sort(() => Math.random() - 0.5))
+    return Array.from({ length: groupCount }, (_, i) =>
+      shuffledPots.map((pot) => pot[i]).filter(Boolean).sort(() => Math.random() - 0.5)
+    )
+  }
+
   let groupTeamsArray
   if (potAssignments) {
     const pots = [1, 2, 3, 4].map((p) =>
       teams.filter((t) => potAssignments[String(t.id)] === p || potAssignments[t.id] === p)
-        .sort(() => Math.random() - 0.5)
     )
-    groupTeamsArray = Array.from({ length: groupCount }, (_, i) =>
-      pots.map((pot) => pot[i]).filter(Boolean).sort(() => Math.random() - 0.5)
-    )
+    groupTeamsArray = buildGroupTeamsArray(pots)
   } else {
     const shuffled = [...teams].sort(() => Math.random() - 0.5)
     groupTeamsArray = Array.from({ length: groupCount }, (_, i) =>
