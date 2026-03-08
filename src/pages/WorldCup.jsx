@@ -174,18 +174,19 @@ export default function WorldCup() {
             }),
           }
         })
-        const nextIdx = Math.min(currentMatchIdx + 1, allMatches.length - 1)
+        const nextIdx = currentMatchIdx + 1
         if (tournament) saveSession(tournament.id, nextIdx, updated)
         return updated
       })
       setTimeout(() => {
-        setCurrentMatchIdx((i) => Math.min(i + 1, allMatches.length - 1))
+        setCurrentMatchIdx((i) => i + 1)
       }, 1500)
     },
     [allMatches, currentMatchIdx, tournament]
   )
 
-  const progress = allMatches.length > 0 ? (currentMatchIdx / allMatches.length) * 100 : 0
+  const isGroupComplete = allMatches.length > 0 && currentMatchIdx >= allMatches.length
+  const progress = allMatches.length > 0 ? (Math.min(currentMatchIdx, allMatches.length) / allMatches.length) * 100 : 0
 
   if (loading) {
     return (
@@ -221,8 +222,8 @@ export default function WorldCup() {
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm text-slate-400 mb-2">
           <span>
-            {phase === 'group' ? '조별리그' : '토너먼트'} · 경기 {currentMatchIdx + 1} /{' '}
-            {allMatches.length}
+            {phase === 'group' ? '조별리그' : '토너먼트'} · 경기{' '}
+            {isGroupComplete ? allMatches.length : currentMatchIdx + 1} / {allMatches.length}
           </span>
           <div className="flex items-center gap-3">
             <span>{Math.round(progress)}% 완료</span>
@@ -245,28 +246,44 @@ export default function WorldCup() {
       <div className="flex gap-6">
         {/* Main vote area */}
         <div className="flex-1">
-          <MatchVote
-            match={allMatches[currentMatchIdx]}
-            onVoted={handleVoted}
-          />
+          {isGroupComplete ? (
+            <div className="text-center py-16">
+              <div className="text-6xl mb-4">🏆</div>
+              <h2 className="text-2xl font-bold text-white mb-2">조별리그 완료!</h2>
+              <p className="text-slate-400 mb-8">72경기 모두 완료했어요. 아래에서 최종 순위를 확인하세요.</p>
+              <button
+                onClick={handleNewTournament}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-lg transition-colors"
+              >
+                🔄 새 대회 시작
+              </button>
+            </div>
+          ) : (
+            <>
+              <MatchVote
+                match={allMatches[currentMatchIdx]}
+                onVoted={handleVoted}
+              />
 
-          {/* Navigation */}
-          <div className="flex justify-center gap-4 mt-8">
-            <button
-              onClick={() => setCurrentMatchIdx((i) => Math.max(i - 1, 0))}
-              disabled={currentMatchIdx === 0}
-              className="px-5 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-white rounded-xl font-medium transition-colors"
-            >
-              ← 이전 경기
-            </button>
-            <button
-              onClick={() => setCurrentMatchIdx((i) => Math.min(i + 1, allMatches.length - 1))}
-              disabled={currentMatchIdx >= allMatches.length - 1}
-              className="px-5 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-white rounded-xl font-medium transition-colors"
-            >
-              다음 경기 →
-            </button>
-          </div>
+              {/* Navigation */}
+              <div className="flex justify-center gap-4 mt-8">
+                <button
+                  onClick={() => setCurrentMatchIdx((i) => Math.max(i - 1, 0))}
+                  disabled={currentMatchIdx === 0}
+                  className="px-5 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-white rounded-xl font-medium transition-colors"
+                >
+                  ← 이전 경기
+                </button>
+                <button
+                  onClick={() => setCurrentMatchIdx((i) => Math.min(i + 1, allMatches.length - 1))}
+                  disabled={currentMatchIdx >= allMatches.length - 1}
+                  className="px-5 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-white rounded-xl font-medium transition-colors"
+                >
+                  다음 경기 →
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Standings */}
           {phase === 'group' && groups.length > 0 && (
