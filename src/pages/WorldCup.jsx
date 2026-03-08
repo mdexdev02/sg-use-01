@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import MatchVote from '../components/worldcup/MatchVote'
 import GroupStandings from '../components/worldcup/GroupStandings'
 import ChatRoom from '../components/chat/ChatRoom'
+import PotSetup from '../components/worldcup/PotSetup'
 import { getActiveTournament, getMatches, initializeTournament } from '../lib/supabase'
 
 const GUEST_NAME = `날씨인#${Math.floor(Math.random() * 9000) + 1000}`
@@ -55,6 +56,7 @@ export default function WorldCup() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [chatOpen, setChatOpen] = useState(true)
+  const [showPotSetup, setShowPotSetup] = useState(false)
 
   useEffect(() => {
     initTournament()
@@ -64,23 +66,43 @@ export default function WorldCup() {
     setLoading(true)
     setError(null)
     try {
-      let active = await getActiveTournament()
+      const active = await getActiveTournament()
 
-      // 활성 토너먼트가 없으면 새로 생성
+      // 활성 토너먼트가 없으면 포트 배정 화면 표시
       if (!active) {
-        active = await initializeTournament('날씨 월드컵 시즌 1')
+        setShowPotSetup(true)
+        setLoading(false)
+        return
       }
 
-      setTournament(active)
-      setPhase(active.phase)
-
-      const raw = await getMatches(active.id)
-      const matches = raw.map(normalizeMatch)
-      setAllMatches(matches)
-      setGroups(buildGroups(matches))
+      await loadTournamentData(active)
     } catch (e) {
       console.error(e)
       setError('Supabase 연결에 실패했습니다. 환경변수를 확인해주세요.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadTournamentData(active) {
+    setTournament(active)
+    setPhase(active.phase)
+    const raw = await getMatches(active.id)
+    const matches = raw.map(normalizeMatch)
+    setAllMatches(matches)
+    setGroups(buildGroups(matches))
+  }
+
+  async function handlePotSetupComplete(potAssignments) {
+    setShowPotSetup(false)
+    setLoading(true)
+    setError(null)
+    try {
+      const active = await initializeTournament('날씨 월드컵 시즌 1', potAssignments)
+      await loadTournamentData(active)
+    } catch (e) {
+      console.error(e)
+      setError('토너먼트 생성에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setLoading(false)
     }
@@ -115,6 +137,10 @@ export default function WorldCup() {
   )
 
   const progress = allMatches.length > 0 ? (currentMatchIdx / allMatches.length) * 100 : 0
+
+  if (showPotSetup) {
+    return <PotSetup onComplete={handlePotSetupComplete} />
+  }
 
   if (loading) {
     return (

@@ -94,6 +94,19 @@ CREATE POLICY "public read chat"          ON chat_messages  FOR SELECT USING (tr
 -- Public insert for chat
 CREATE POLICY "public insert chat" ON chat_messages FOR INSERT WITH CHECK (true);
 
+-- ─── Pot Presets ──────────────────────────────────────────────────────────────
+CREATE TABLE pot_presets (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name          text NOT NULL,
+  assignments   jsonb NOT NULL,   -- { "teamId": potNumber (1-4), ... }
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE pot_presets ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public read pot_presets"   ON pot_presets FOR SELECT USING (true);
+CREATE POLICY "public insert pot_presets" ON pot_presets FOR INSERT WITH CHECK (true);
+CREATE POLICY "public delete pot_presets" ON pot_presets FOR DELETE USING (true);
+
 -- ─── Realtime ─────────────────────────────────────────────────────────────────
 -- Supabase 대시보드에서 matches, chat_messages 테이블의 Replication을 활성화하세요.
 

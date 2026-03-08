@@ -30,7 +30,8 @@ export async function getActiveTournament() {
 }
 
 // 토너먼트 + 조 편성 + 매치 한 번에 생성
-export async function initializeTournament(name) {
+// potAssignments: { [teamId]: 1|2|3|4 } — null이면 완전 랜덤 추첨
+export async function initializeTournament(name, potAssignments = null) {
   const tournament = await createTournament(name)
 
   // DB에서 날씨팀 목록 가져오기
@@ -40,13 +41,28 @@ export async function initializeTournament(name) {
     .order('id')
   if (teamsError) throw teamsError
 
-  // 팀 셔플
-  const shuffled = [...teams].sort(() => Math.random() - 0.5)
   const groupCount = 12
-  const teamsPerGroup = 4
+
+  // 포트 배정이 있으면 FIFA식 조 추첨 (각 조에 포트별 1팀씩)
+  // 없으면 기존 랜덤 셔플
+  let groupTeamsArray
+  if (potAssignments) {
+    const pots = [1, 2, 3, 4].map((p) =>
+      teams.filter((t) => potAssignments[String(t.id)] === p || potAssignments[t.id] === p)
+        .sort(() => Math.random() - 0.5)
+    )
+    groupTeamsArray = Array.from({ length: groupCount }, (_, i) =>
+      pots.map((pot) => pot[i]).filter(Boolean).sort(() => Math.random() - 0.5)
+    )
+  } else {
+    const shuffled = [...teams].sort(() => Math.random() - 0.5)
+    groupTeamsArray = Array.from({ length: groupCount }, (_, i) =>
+      shuffled.slice(i * 4, (i + 1) * 4)
+    )
+  }
 
   for (let i = 0; i < groupCount; i++) {
-    const groupTeams = shuffled.slice(i * teamsPerGroup, (i + 1) * teamsPerGroup)
+    const groupTeams = groupTeamsArray[i]
     const groupName = `${String.fromCharCode(65 + i)}조`
 
     // 그룹 생성
@@ -83,6 +99,32 @@ export async function initializeTournament(name) {
   }
 
   return tournament
+}
+
+// ─── Pot Presets ──────────────────────────────────────────────────────────────
+
+export async function getPotPresets() {
+  const { data, error } = await supabase
+    .from('pot_presets')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function savePotPreset(name, assignments) {
+  const { data, error } = await supabase
+    .from('pot_presets')
+    .insert({ name, assignments })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deletePotPreset(id) {
+  const { error } = await supabase.from('pot_presets').delete().eq('id', id)
+  if (error) throw error
 }
 
 // ─── Matches ──────────────────────────────────────────────────────────────────
