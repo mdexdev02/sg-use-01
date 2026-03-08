@@ -17,6 +17,14 @@ export async function createTournament(name) {
   return data
 }
 
+export async function completeTournament(id) {
+  const { error } = await supabase
+    .from('tournaments')
+    .update({ status: 'completed' })
+    .eq('id', id)
+  if (error) throw error
+}
+
 export async function getActiveTournament() {
   const { data, error } = await supabase
     .from('tournaments')

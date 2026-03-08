@@ -3,7 +3,7 @@ import MatchVote from '../components/worldcup/MatchVote'
 import GroupStandings from '../components/worldcup/GroupStandings'
 import ChatRoom from '../components/chat/ChatRoom'
 import PotSetup from '../components/worldcup/PotSetup'
-import { getActiveTournament, getMatches, initializeTournament } from '../lib/supabase'
+import { getActiveTournament, getMatches, initializeTournament, completeTournament } from '../lib/supabase'
 
 const GUEST_NAME = `날씨인#${Math.floor(Math.random() * 9000) + 1000}`
 
@@ -108,6 +108,22 @@ export default function WorldCup() {
     }
   }
 
+  async function handleNewTournament() {
+    if (!confirm('현재 대회를 종료하고 새 대회를 시작할까요?')) return
+    if (tournament) {
+      try {
+        await completeTournament(tournament.id)
+      } catch (e) {
+        console.error(e)
+      }
+    }
+    setTournament(null)
+    setAllMatches([])
+    setGroups([])
+    setCurrentMatchIdx(0)
+    setShowPotSetup(true)
+  }
+
   const handleVoted = useCallback(
     (side) => {
       setGroups((prev) => {
@@ -179,7 +195,15 @@ export default function WorldCup() {
             {phase === 'group' ? '조별리그' : '토너먼트'} · 경기 {currentMatchIdx + 1} /{' '}
             {allMatches.length}
           </span>
-          <span>{Math.round(progress)}% 완료</span>
+          <div className="flex items-center gap-3">
+            <span>{Math.round(progress)}% 완료</span>
+            <button
+              onClick={handleNewTournament}
+              className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white rounded-lg transition-colors"
+            >
+              🔄 새 대회
+            </button>
+          </div>
         </div>
         <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
           <div
