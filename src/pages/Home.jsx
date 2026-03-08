@@ -84,6 +84,7 @@ export default function Home() {
           ))}
         </div>
       </section>
+      <footer className="mt-10 text-center text-slate-600 text-xs">v.0.1</footer>
     </main>
   )
 }
