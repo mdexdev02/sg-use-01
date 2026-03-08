@@ -24,6 +24,7 @@ function buildGroups(matches) {
           emoji: team.emoji,
           played: 0,
           wins: 0,
+          draws: 0,
           losses: 0,
           totalVotes: 0,
         })
@@ -129,17 +130,22 @@ export default function WorldCup() {
       setGroups((prev) => {
         const match = allMatches[currentMatchIdx]
         if (!match) return prev
-        const winner = side === 'team1' ? match.team1 : match.team2
-        const loser = side === 'team1' ? match.team2 : match.team1
         return prev.map((g) => {
           if (g.id !== match.group_id) return g
           return {
             ...g,
             standings: g.standings.map((s) => {
-              if (s.teamId === winner.id)
-                return { ...s, played: s.played + 1, wins: s.wins + 1, totalVotes: s.totalVotes + 1 }
-              if (s.teamId === loser.id)
-                return { ...s, played: s.played + 1, losses: s.losses + 1 }
+              if (side === 'draw') {
+                if (s.teamId === match.team1.id || s.teamId === match.team2.id)
+                  return { ...s, played: s.played + 1, draws: s.draws + 1 }
+              } else {
+                const winner = side === 'team1' ? match.team1 : match.team2
+                const loser = side === 'team1' ? match.team2 : match.team1
+                if (s.teamId === winner.id)
+                  return { ...s, played: s.played + 1, wins: s.wins + 1, totalVotes: s.totalVotes + 1 }
+                if (s.teamId === loser.id)
+                  return { ...s, played: s.played + 1, losses: s.losses + 1 }
+              }
               return s
             }),
           }

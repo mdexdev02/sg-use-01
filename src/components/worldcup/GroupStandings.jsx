@@ -17,6 +17,7 @@ export default function GroupStandings({ groups }) {
                 <th className="text-left pb-2">팀</th>
                 <th className="text-center pb-2">경기</th>
                 <th className="text-center pb-2">승</th>
+                <th className="text-center pb-2">무</th>
                 <th className="text-center pb-2">패</th>
                 <th className="text-center pb-2">득표</th>
               </tr>
@@ -34,6 +35,7 @@ export default function GroupStandings({ groups }) {
                   </td>
                   <td className="text-center py-2">{s.played}</td>
                   <td className="text-center py-2">{s.wins}</td>
+                  <td className="text-center py-2">{s.draws ?? 0}</td>
                   <td className="text-center py-2">{s.losses}</td>
                   <td className="text-center py-2">{s.totalVotes}</td>
                 </tr>

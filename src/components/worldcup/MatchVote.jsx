@@ -3,7 +3,7 @@ import WeatherCard from './WeatherCard'
 import { vote, subscribeToMatch } from '../../lib/supabase'
 
 export default function MatchVote({ match, onVoted }) {
-  const [voted, setVoted] = useState(null) // 'team1' | 'team2'
+  const [voted, setVoted] = useState(null) // 'team1' | 'team2' | 'draw'
   const [liveMatch, setLiveMatch] = useState(match)
   const [loading, setLoading] = useState(false)
 
@@ -34,6 +34,12 @@ export default function MatchVote({ match, onVoted }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleDraw() {
+    if (voted || loading) return
+    setVoted('draw')
+    onVoted?.('draw')
   }
 
   if (!match) return null
@@ -71,6 +77,16 @@ export default function MatchVote({ match, onVoted }) {
         />
       </div>
 
+      {!voted && (
+        <button
+          onClick={handleDraw}
+          disabled={loading}
+          className="px-8 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 text-slate-300 rounded-xl font-medium transition-colors text-sm"
+        >
+          🤝 무승부
+        </button>
+      )}
+
       {voted && (
         <p className="text-green-400 font-semibold animate-pulse">
           ✅ 투표 완료! 실시간 결과를 확인하세요.
@@ -78,7 +94,7 @@ export default function MatchVote({ match, onVoted }) {
       )}
 
       {!voted && (
-        <p className="text-slate-500 text-sm">카드를 클릭해서 투표하세요</p>
+        <p className="text-slate-500 text-sm">카드를 클릭해서 투표하거나 무승부를 선택하세요</p>
       )}
     </div>
   )
