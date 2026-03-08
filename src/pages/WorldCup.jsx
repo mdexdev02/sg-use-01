@@ -199,7 +199,7 @@ export default function WorldCup() {
             <span>{Math.round(progress)}% 완료</span>
             <button
               onClick={handleNewTournament}
-              className="text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white rounded-lg transition-colors"
+              className="text-sm px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-xl font-medium transition-colors"
             >
               🔄 새 대회
             </button>
