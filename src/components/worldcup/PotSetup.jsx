@@ -62,6 +62,7 @@ export default function PotSetup({ onComplete }) {
   const [showLoadModal, setShowLoadModal] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [savedToast, setSavedToast] = useState('')
+  const [checkedIds, setCheckedIds] = useState(new Set())
 
   useEffect(() => {
     loadPresets()
@@ -155,6 +156,69 @@ export default function PotSetup({ onComplete }) {
     const updated = loadPresetsFromStorage().filter((p) => p.id !== id)
     savePresetsToStorage(updated)
     setPresets(updated)
+    setCheckedIds((prev) => { const s = new Set(prev); s.delete(id); return s })
+  }
+
+  function handleBulkDelete() {
+    if (!checkedIds.size) return
+    if (!confirm(`선택한 ${checkedIds.size}개 프리셋을 삭제할까요?`)) return
+    const updated = loadPresetsFromStorage().filter((p) => !checkedIds.has(p.id))
+    savePresetsToStorage(updated)
+    setPresets(updated)
+    setCheckedIds(new Set())
+  }
+
+  async function handleBulkShare() {
+    const selected = presets.filter((p) => checkedIds.has(p.id))
+    const json = JSON.stringify(selected, null, 2)
+    const fileName = `pot_presets_${new Date().toISOString().slice(0,10)}.json`
+    const file = new File([json], fileName, { type: 'application/json' })
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: '포트 배정 프리셋' })
+    } else {
+      const url = URL.createObjectURL(file)
+      const a = document.createElement('a')
+      a.href = url; a.download = fileName; a.click()
+      URL.revokeObjectURL(url)
+      setSavedToast('파일 다운로드됨')
+      setTimeout(() => setSavedToast(''), 2500)
+    }
+  }
+
+  function handleImport(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target.result)
+        if (!Array.isArray(imported)) throw new Error()
+        const existing = loadPresetsFromStorage()
+        const existingIds = new Set(existing.map((p) => p.id))
+        const newOnes = imported.filter((p) => !existingIds.has(p.id))
+        const updated = [...existing, ...newOnes]
+        savePresetsToStorage(updated)
+        setPresets(updated)
+        setSavedToast(`${newOnes.length}개 프리셋 가져옴`)
+        setTimeout(() => setSavedToast(''), 2500)
+      } catch {
+        alert('올바른 프리셋 파일이 아닙니다.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  function toggleCheck(id) {
+    setCheckedIds((prev) => {
+      const s = new Set(prev)
+      s.has(id) ? s.delete(id) : s.add(id)
+      return s
+    })
+  }
+
+  function toggleAll() {
+    setCheckedIds(checkedIds.size === presets.length ? new Set() : new Set(presets.map((p) => p.id)))
   }
 
   const potCounts = [1, 2, 3, 4].map(
@@ -454,8 +518,47 @@ export default function PotSetup({ onComplete }) {
       {/* Load Modal */}
       {showLoadModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-96 max-h-[70vh] flex flex-col shadow-2xl">
-            <h3 className="text-white font-bold text-lg mb-4">📂 프리셋 불러오기</h3>
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-[26rem] max-h-[80vh] flex flex-col shadow-2xl">
+            {/* Modal header */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-white font-bold text-lg">📂 프리셋 불러오기</h3>
+              <label className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs cursor-pointer transition-colors">
+                📥 가져오기
+                <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+              </label>
+            </div>
+
+            {/* Bulk action bar */}
+            {presets.length > 0 && (
+              <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-700">
+                <input
+                  type="checkbox"
+                  checked={checkedIds.size === presets.length && presets.length > 0}
+                  onChange={toggleAll}
+                  className="w-4 h-4 accent-blue-500 cursor-pointer"
+                />
+                <span className="text-slate-400 text-xs flex-1">
+                  {checkedIds.size > 0 ? `${checkedIds.size}개 선택됨` : '전체 선택'}
+                </span>
+                {checkedIds.size > 0 && (
+                  <>
+                    <button
+                      onClick={handleBulkShare}
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors"
+                    >
+                      📤 공유
+                    </button>
+                    <button
+                      onClick={handleBulkDelete}
+                      className="px-3 py-1 bg-red-900/50 hover:bg-red-800/70 text-red-300 rounded-lg text-xs font-medium transition-colors"
+                    >
+                      🗑️ 삭제
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto">
               {presets.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-2">
@@ -466,47 +569,42 @@ export default function PotSetup({ onComplete }) {
                 <div className="space-y-2 mb-2">
                   {presets.map((preset) => {
                     const presetPotCounts = [1, 2, 3, 4].map(
-                      (p) =>
-                        Object.values(preset.assignments || {}).filter((v) => v === p).length
+                      (p) => Object.values(preset.assignments || {}).filter((v) => v === p).length
                     )
+                    const isChecked = checkedIds.has(preset.id)
                     return (
                       <div
                         key={preset.id}
-                        className="flex items-center gap-3 p-3 bg-slate-700/50 rounded-xl border border-slate-600/50 hover:border-slate-500/50 transition-colors"
+                        className={`flex items-center gap-3 p-3 rounded-xl border transition-colors cursor-pointer
+                          ${isChecked ? 'bg-slate-700 border-slate-500' : 'bg-slate-700/50 border-slate-600/50 hover:border-slate-500/50'}`}
+                        onClick={() => toggleCheck(preset.id)}
                       >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleCheck(preset.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 accent-blue-500 cursor-pointer flex-shrink-0"
+                        />
                         <div className="flex-1 min-w-0">
-                          <div className="text-white text-sm font-medium truncate">
-                            🏷️ {preset.name}
-                          </div>
+                          <div className="text-white text-sm font-medium truncate">🏷️ {preset.name}</div>
                           <div className="text-slate-500 text-xs mt-0.5">
-                            {new Date(preset.created_at).toLocaleDateString('ko-KR')} ·{' '}
-                            {Object.keys(preset.assignments || {}).length}팀 배정됨
+                            {new Date(preset.created_at).toLocaleDateString('ko-KR')} · {Object.keys(preset.assignments || {}).length}팀
                           </div>
                           <div className="flex gap-1 mt-1">
                             {presetPotCounts.map((c, i) => (
-                              <span
-                                key={i}
-                                className={`text-[10px] px-1.5 py-0.5 rounded ${POT_COLORS[i+1].bg} ${POT_COLORS[i+1].text} border ${POT_COLORS[i+1].border}`}
-                              >
+                              <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded ${POT_COLORS[i+1].bg} ${POT_COLORS[i+1].text} border ${POT_COLORS[i+1].border}`}>
                                 P{i+1}:{c}
                               </span>
                             ))}
                           </div>
                         </div>
-                        <div className="flex gap-1.5 flex-shrink-0">
-                          <button
-                            onClick={() => handleLoadPreset(preset)}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors"
-                          >
-                            불러오기
-                          </button>
-                          <button
-                            onClick={() => handleDeletePreset(preset.id)}
-                            className="px-2 py-1.5 bg-red-900/40 hover:bg-red-800/60 text-red-400 rounded-lg text-xs transition-colors"
-                          >
-                            삭제
-                          </button>
-                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleLoadPreset(preset) }}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition-colors flex-shrink-0"
+                        >
+                          불러오기
+                        </button>
                       </div>
                     )
                   })}
@@ -514,7 +612,7 @@ export default function PotSetup({ onComplete }) {
               )}
             </div>
             <button
-              onClick={() => setShowLoadModal(false)}
+              onClick={() => { setShowLoadModal(false); setCheckedIds(new Set()) }}
               className="mt-4 w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-sm transition-colors"
             >
               닫기
