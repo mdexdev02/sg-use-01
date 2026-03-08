@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import MatchVote from '../components/worldcup/MatchVote'
 import GroupStandings from '../components/worldcup/GroupStandings'
 import ChatRoom from '../components/chat/ChatRoom'
-import PotSetup from '../components/worldcup/PotSetup'
+import PotSetup, { clearPotDraft } from '../components/worldcup/PotSetup'
 import { getActiveTournament, getMatches, initializeTournament, completeTournament } from '../lib/supabase'
 
 const GUEST_NAME = `날씨인#${Math.floor(Math.random() * 9000) + 1000}`
@@ -154,6 +154,7 @@ export default function WorldCup() {
         console.error(e)
       }
     }
+    clearPotDraft()
     setTournament(null)
     setAllMatches([])
     setGroups([])

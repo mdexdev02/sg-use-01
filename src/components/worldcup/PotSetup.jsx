@@ -2,12 +2,22 @@ import { useState, useEffect } from 'react'
 import { weatherTypes } from '../../data/weatherTypes'
 
 const STORAGE_KEY = 'pot_presets'
+const DRAFT_KEY = 'pot_draft_assignments'
 
 function loadPresetsFromStorage() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
 }
 function savePresetsToStorage(presets) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(presets))
+}
+function loadDraft() {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null') } catch { return null }
+}
+function saveDraft(assignments) {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(assignments)) } catch {}
+}
+export function clearPotDraft() {
+  try { localStorage.removeItem(DRAFT_KEY) } catch {}
 }
 
 const POT_COLORS = {
@@ -54,7 +64,7 @@ const POT_COLORS = {
 }
 
 export default function PotSetup({ onComplete }) {
-  const [assignments, setAssignments] = useState({})
+  const [assignments, setAssignments] = useState(() => loadDraft() || {})
   const [selectedTeamId, setSelectedTeamId] = useState(null)
   const [filterPot, setFilterPot] = useState(0)
   const [presets, setPresets] = useState([])
@@ -67,6 +77,10 @@ export default function PotSetup({ onComplete }) {
   useEffect(() => {
     loadPresets()
   }, [])
+
+  useEffect(() => {
+    saveDraft(assignments)
+  }, [assignments])
 
   function loadPresets() {
     setPresets(loadPresetsFromStorage())
@@ -471,7 +485,7 @@ export default function PotSetup({ onComplete }) {
           </p>
         )}
         <button
-          onClick={() => onComplete(assignments)}
+          onClick={() => { clearPotDraft(); onComplete(assignments) }}
           disabled={!allAssigned}
           className="px-10 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded-2xl text-xl transition-all hover:scale-105 disabled:hover:scale-100 shadow-lg"
         >
