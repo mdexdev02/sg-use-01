@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import { weatherTypes } from '../../data/weatherTypes'
-import { getPotPresets, savePotPreset, deletePotPreset } from '../../lib/supabase'
+
+const STORAGE_KEY = 'pot_presets'
+
+function loadPresetsFromStorage() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
+}
+function savePresetsToStorage(presets) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(presets))
+}
 
 const POT_COLORS = {
   1: {
@@ -53,23 +61,13 @@ export default function PotSetup({ onComplete }) {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showLoadModal, setShowLoadModal] = useState(false)
   const [presetName, setPresetName] = useState('')
-  const [savingPreset, setSavingPreset] = useState(false)
-  const [loadingPresets, setLoadingPresets] = useState(false)
 
   useEffect(() => {
     loadPresets()
   }, [])
 
-  async function loadPresets() {
-    setLoadingPresets(true)
-    try {
-      const data = await getPotPresets()
-      setPresets(data)
-    } catch (e) {
-      console.error('프리셋 로드 실패:', e)
-    } finally {
-      setLoadingPresets(false)
-    }
+  function loadPresets() {
+    setPresets(loadPresetsFromStorage())
   }
 
   function autoAssign() {
@@ -129,19 +127,19 @@ export default function PotSetup({ onComplete }) {
     setSelectedTeamId(null)
   }
 
-  async function handleSave() {
+  function handleSave() {
     if (!presetName.trim()) return
-    setSavingPreset(true)
-    try {
-      await savePotPreset(presetName.trim(), assignments)
-      await loadPresets()
-      setShowSaveModal(false)
-      setPresetName('')
-    } catch (e) {
-      console.error('저장 실패:', e)
-    } finally {
-      setSavingPreset(false)
+    const newPreset = {
+      id: crypto.randomUUID(),
+      name: presetName.trim(),
+      assignments,
+      created_at: new Date().toISOString(),
     }
+    const updated = [...loadPresetsFromStorage(), newPreset]
+    savePresetsToStorage(updated)
+    setPresets(updated)
+    setShowSaveModal(false)
+    setPresetName('')
   }
 
   function handleLoadPreset(preset) {
@@ -150,13 +148,10 @@ export default function PotSetup({ onComplete }) {
     setSelectedTeamId(null)
   }
 
-  async function handleDeletePreset(id) {
-    try {
-      await deletePotPreset(id)
-      await loadPresets()
-    } catch (e) {
-      console.error('삭제 실패:', e)
-    }
+  function handleDeletePreset(id) {
+    const updated = loadPresetsFromStorage().filter((p) => p.id !== id)
+    savePresetsToStorage(updated)
+    setPresets(updated)
   }
 
   const potCounts = [1, 2, 3, 4].map(
@@ -438,10 +433,10 @@ export default function PotSetup({ onComplete }) {
               </button>
               <button
                 onClick={handleSave}
-                disabled={!presetName.trim() || savingPreset}
+                disabled={!presetName.trim()}
                 className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
               >
-                {savingPreset ? '저장 중...' : '저장'}
+                저장
               </button>
             </div>
           </div>
@@ -454,11 +449,7 @@ export default function PotSetup({ onComplete }) {
           <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-96 max-h-[70vh] flex flex-col shadow-2xl">
             <h3 className="text-white font-bold text-lg mb-4">📂 프리셋 불러오기</h3>
             <div className="flex-1 overflow-y-auto">
-              {loadingPresets ? (
-                <div className="flex items-center justify-center py-12">
-                  <span className="text-slate-400 text-sm animate-pulse">불러오는 중...</span>
-                </div>
-              ) : presets.length === 0 ? (
+              {presets.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-2">
                   <span className="text-3xl">📭</span>
                   <p className="text-slate-400 text-sm">저장된 프리셋이 없습니다</p>
