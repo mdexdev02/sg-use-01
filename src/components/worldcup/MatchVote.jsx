@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import WeatherCard from './WeatherCard'
 import { vote, subscribeToMatch } from '../../lib/supabase'
 
-export default function MatchVote({ match, onVoted }) {
+export default function MatchVote({ match, onVoted, allowDraw = true }) {
   const [voted, setVoted] = useState(null) // 'team1' | 'team2' | 'draw'
   const [liveMatch, setLiveMatch] = useState(match)
   const [loading, setLoading] = useState(false)
@@ -77,7 +77,7 @@ export default function MatchVote({ match, onVoted }) {
         />
       </div>
 
-      {!voted && (
+      {!voted && allowDraw && (
         <button
           onClick={handleDraw}
           disabled={loading}

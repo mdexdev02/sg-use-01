@@ -50,7 +50,7 @@ export default function GroupStandings({ groups }) {
                 ))}
               </tbody>
             </table>
-            <p className="text-xs text-slate-500 mt-2">↑ 32강 진출 (상위 2팀) · 승3 무1 패0</p>
+            <p className="text-xs text-slate-500 mt-2">↑ 토너먼트 진출 후보 (상위 2팀) · 승3 무1 패0</p>
           </div>
         )
       })}

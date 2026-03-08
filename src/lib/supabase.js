@@ -178,6 +178,32 @@ export async function deletePotPreset(id) {
   if (error) throw error
 }
 
+// ─── Knockout ─────────────────────────────────────────────────────────────────
+
+export async function createKnockoutMatches(tournamentId, teamPairs, round, baseOrder) {
+  const inserts = teamPairs.map(([t1, t2], i) => ({
+    tournament_id: tournamentId,
+    round,
+    match_order: baseOrder + i,
+    team1_id: t1.teamId,
+    team2_id: t2.teamId,
+  }))
+  const { data, error } = await supabase
+    .from('matches')
+    .insert(inserts)
+    .select(`*, team1:weather_teams!team1_id(*), team2:weather_teams!team2_id(*)`)
+  if (error) throw error
+  return data
+}
+
+export async function updateTournamentPhase(id, phase) {
+  const { error } = await supabase
+    .from('tournaments')
+    .update({ phase })
+    .eq('id', id)
+  if (error) throw error
+}
+
 // ─── Matches ──────────────────────────────────────────────────────────────────
 
 export async function getMatches(tournamentId) {
