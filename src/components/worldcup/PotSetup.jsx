@@ -172,14 +172,16 @@ export default function PotSetup({ onComplete }) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {savedToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-emerald-600 text-white rounded-2xl shadow-xl font-medium text-sm">
+          ✅ {savedToast}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-white">🏆 포트 배정</h1>
           <p className="text-slate-400 mt-1">48개 팀을 4개 포트에 각 12팀씩 배정하세요</p>
-          {savedToast && (
-            <p className="mt-2 text-emerald-400 text-sm font-medium">✅ {savedToast}</p>
-          )}
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
