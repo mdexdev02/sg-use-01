@@ -2,23 +2,59 @@ import { useState, useEffect, useCallback } from 'react'
 import MatchVote from '../components/worldcup/MatchVote'
 import GroupStandings from '../components/worldcup/GroupStandings'
 import ChatRoom from '../components/chat/ChatRoom'
-import { weatherTypes, createGroupStage, createGroupMatches } from '../data/weatherTypes'
-import { getActiveTournament, getMatches } from '../lib/supabase'
+import { getActiveTournament, getMatches, initializeTournament } from '../lib/supabase'
 
 const GUEST_NAME = `날씨인#${Math.floor(Math.random() * 9000) + 1000}`
+
+// 매치 목록에서 조별 순위표 계산
+function buildGroups(matches) {
+  const groupMap = new Map()
+  for (const m of matches) {
+    const gId = m.group_id
+    if (!groupMap.has(gId)) {
+      groupMap.set(gId, { id: gId, name: m.group?.name || '', standingsMap: new Map() })
+    }
+    const g = groupMap.get(gId)
+    for (const team of [m.team1, m.team2]) {
+      if (!g.standingsMap.has(team.id)) {
+        g.standingsMap.set(team.id, {
+          teamId: team.id,
+          name: team.name,
+          emoji: team.emoji,
+          played: 0,
+          wins: 0,
+          losses: 0,
+          totalVotes: 0,
+        })
+      }
+    }
+  }
+  return Array.from(groupMap.values()).map((g) => ({
+    id: g.id,
+    name: g.name,
+    standings: Array.from(g.standingsMap.values()),
+  }))
+}
+
+// DB 매치를 컴포넌트 형식으로 변환
+function normalizeMatch(m) {
+  return {
+    ...m,
+    groupName: m.group?.name || '',
+    roundLabel: m.round === 'group' ? '조별리그' : `${m.round}강`,
+  }
+}
 
 export default function WorldCup() {
   const [tournament, setTournament] = useState(null)
   const [groups, setGroups] = useState([])
   const [allMatches, setAllMatches] = useState([])
   const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
-  const [phase, setPhase] = useState('group') // 'group' | 'knockout'
+  const [phase, setPhase] = useState('group')
   const [username] = useState(GUEST_NAME)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [chatOpen, setChatOpen] = useState(true)
-
-  // 로컬 데모 모드 (Supabase 미연결 시)
-  const [demoMode, setDemoMode] = useState(false)
 
   useEffect(() => {
     initTournament()
@@ -26,63 +62,25 @@ export default function WorldCup() {
 
   async function initTournament() {
     setLoading(true)
+    setError(null)
     try {
-      const active = await getActiveTournament()
-      if (active) {
-        setTournament(active)
-        const matches = await getMatches(active.id)
-        setAllMatches(matches)
-        setPhase(active.phase)
-      } else {
-        // 데모 모드: 로컬에서 조 편성
-        setDemoMode(true)
-        const g = createGroupStage(weatherTypes)
-        const groupsWithMatches = g.map((group) => ({
-          ...group,
-          matches: createGroupMatches(group),
-          standings: group.teams.map((t) => ({
-            ...t,
-            teamId: t.id,
-            played: 0,
-            wins: 0,
-            losses: 0,
-            totalVotes: 0,
-          })),
-        }))
-        setGroups(groupsWithMatches)
-        const flat = groupsWithMatches.flatMap((g) =>
-          g.matches.map((m) => ({
-            ...m,
-            groupName: g.name,
-            roundLabel: '조별리그',
-          }))
-        )
-        setAllMatches(flat)
+      let active = await getActiveTournament()
+
+      // 활성 토너먼트가 없으면 새로 생성
+      if (!active) {
+        active = await initializeTournament('날씨 월드컵 시즌 1')
       }
-    } catch {
-      setDemoMode(true)
-      const g = createGroupStage(weatherTypes)
-      const groupsWithMatches = g.map((group) => ({
-        ...group,
-        matches: createGroupMatches(group),
-        standings: group.teams.map((t) => ({
-          ...t,
-          teamId: t.id,
-          played: 0,
-          wins: 0,
-          losses: 0,
-          totalVotes: 0,
-        })),
-      }))
-      setGroups(groupsWithMatches)
-      const flat = groupsWithMatches.flatMap((g) =>
-        g.matches.map((m) => ({
-          ...m,
-          groupName: g.name,
-          roundLabel: '조별리그',
-        }))
-      )
-      setAllMatches(flat)
+
+      setTournament(active)
+      setPhase(active.phase)
+
+      const raw = await getMatches(active.id)
+      const matches = raw.map(normalizeMatch)
+      setAllMatches(matches)
+      setGroups(buildGroups(matches))
+    } catch (e) {
+      console.error(e)
+      setError('Supabase 연결에 실패했습니다. 환경변수를 확인해주세요.')
     } finally {
       setLoading(false)
     }
@@ -90,18 +88,18 @@ export default function WorldCup() {
 
   const handleVoted = useCallback(
     (side) => {
-      if (!demoMode) return
       setGroups((prev) => {
         const match = allMatches[currentMatchIdx]
+        if (!match) return prev
+        const winner = side === 'team1' ? match.team1 : match.team2
+        const loser = side === 'team1' ? match.team2 : match.team1
         return prev.map((g) => {
-          if (g.id !== match.groupId) return g
-          const winner = side === 'team1' ? match.team1 : match.team2
-          const loser = side === 'team1' ? match.team2 : match.team1
+          if (g.id !== match.group_id) return g
           return {
             ...g,
             standings: g.standings.map((s) => {
               if (s.teamId === winner.id)
-                return { ...s, played: s.played + 1, wins: s.wins + 1 }
+                return { ...s, played: s.played + 1, wins: s.wins + 1, totalVotes: s.totalVotes + 1 }
               if (s.teamId === loser.id)
                 return { ...s, played: s.played + 1, losses: s.losses + 1 }
               return s
@@ -113,7 +111,7 @@ export default function WorldCup() {
         setCurrentMatchIdx((i) => Math.min(i + 1, allMatches.length - 1))
       }, 1500)
     },
-    [allMatches, currentMatchIdx, demoMode]
+    [allMatches, currentMatchIdx]
   )
 
   const progress = allMatches.length > 0 ? (currentMatchIdx / allMatches.length) * 100 : 0
@@ -129,14 +127,25 @@ export default function WorldCup() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="text-5xl mb-4">❌</div>
+          <p className="text-red-400 mb-4">{error}</p>
+          <button
+            onClick={initTournament}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl"
+          >
+            다시 시도
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
-      {demoMode && (
-        <div className="mb-4 px-4 py-2 bg-yellow-900/40 border border-yellow-700 rounded-lg text-yellow-300 text-sm">
-          ⚠️ 데모 모드 — Supabase 연결 후 실시간 투표가 활성화됩니다.
-        </div>
-      )}
-
       {/* Progress */}
       <div className="mb-6">
         <div className="flex items-center justify-between text-sm text-slate-400 mb-2">
