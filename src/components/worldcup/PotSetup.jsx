@@ -173,9 +173,16 @@ export default function PotSetup({ onComplete }) {
     const json = JSON.stringify(selected, null, 2)
     const fileName = `pot_presets_${new Date().toISOString().slice(0,10)}.json`
     const file = new File([json], fileName, { type: 'application/json' })
+    let shared = false
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: '포트 배정 프리셋' })
-    } else {
+      try {
+        await navigator.share({ files: [file], title: '포트 배정 프리셋' })
+        shared = true
+      } catch (e) {
+        if (e.name === 'AbortError') return // 사용자가 취소
+      }
+    }
+    if (!shared) {
       const url = URL.createObjectURL(file)
       const a = document.createElement('a')
       a.href = url; a.download = fileName; a.click()
