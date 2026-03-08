@@ -60,13 +60,21 @@ export const weatherTypes = [
   { id: 41, name: '라니냐', emoji: '🌊', category: WEATHER_CATEGORIES.WIND },
   { id: 42, name: '대기', emoji: '🌬️', category: WEATHER_CATEGORIES.WIND },
 
-  // 재해 계열 (6팀, 총 48팀)
+  // 재해 계열 (12팀, 총 54팀)
   { id: 43, name: '마그마', emoji: '🌋', category: WEATHER_CATEGORIES.DISASTER },
   { id: 44, name: '운석', emoji: '☄️', category: WEATHER_CATEGORIES.DISASTER },
   { id: 45, name: '화산재', emoji: '🌋', category: WEATHER_CATEGORIES.DISASTER },
   { id: 46, name: '해일', emoji: '🌊', category: WEATHER_CATEGORIES.DISASTER },
   { id: 47, name: '가뭄', emoji: '🏜️', category: WEATHER_CATEGORIES.DISASTER },
   { id: 48, name: '쓰나미', emoji: '🌊', category: WEATHER_CATEGORIES.DISASTER },
+  { id: 49, name: '방사능', emoji: '☢️', category: WEATHER_CATEGORIES.DISASTER },
+  { id: 50, name: '산사태', emoji: '⛰️', category: WEATHER_CATEGORIES.DISASTER },
+  { id: 51, name: '싱크홀', emoji: '🕳️', category: WEATHER_CATEGORIES.DISASTER },
+  { id: 52, name: '빙하', emoji: '🧊', category: WEATHER_CATEGORIES.DISASTER },
+
+  // 강수 계열 추가
+  { id: 53, name: '천둥번개', emoji: '⚡', category: WEATHER_CATEGORIES.RAIN },
+  { id: 54, name: '광역성비', emoji: '🌧️', category: WEATHER_CATEGORIES.RAIN },
 ]
 
 // 48강: 12개 조, 각 4팀

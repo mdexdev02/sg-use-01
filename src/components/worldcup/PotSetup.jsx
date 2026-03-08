@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { weatherTypes } from '../../data/weatherTypes'
+import { weatherTypes, WEATHER_CATEGORIES } from '../../data/weatherTypes'
 
 const STORAGE_KEY = 'pot_presets'
 const DRAFT_KEY = 'pot_draft_assignments'
+const CUSTOM_TEAMS_KEY = 'custom_weather_teams'
 
 function loadPresetsFromStorage() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
@@ -18,6 +19,12 @@ function saveDraft(assignments) {
 }
 export function clearPotDraft() {
   try { localStorage.removeItem(DRAFT_KEY) } catch {}
+}
+function loadCustomTeams() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_TEAMS_KEY) || '[]') } catch { return [] }
+}
+function saveCustomTeams(teams) {
+  try { localStorage.setItem(CUSTOM_TEAMS_KEY, JSON.stringify(teams)) } catch {}
 }
 
 const POT_COLORS = {
@@ -63,16 +70,28 @@ const POT_COLORS = {
   },
 }
 
+const CATEGORY_OPTIONS = Object.values(WEATHER_CATEGORIES)
+
+let customIdCounter = Date.now()
+
 export default function PotSetup({ onComplete }) {
+  const [customTeams, setCustomTeams] = useState(() => loadCustomTeams())
+  const allTeams = [...weatherTypes, ...customTeams]
+
   const [assignments, setAssignments] = useState(() => loadDraft() || {})
   const [selectedTeamId, setSelectedTeamId] = useState(null)
   const [filterPot, setFilterPot] = useState(0)
   const [presets, setPresets] = useState([])
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showLoadModal, setShowLoadModal] = useState(false)
+  const [showAddTeamModal, setShowAddTeamModal] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [savedToast, setSavedToast] = useState('')
   const [checkedIds, setCheckedIds] = useState(new Set())
+
+  const [newTeamName, setNewTeamName] = useState('')
+  const [newTeamEmoji, setNewTeamEmoji] = useState('')
+  const [newTeamCategory, setNewTeamCategory] = useState(CATEGORY_OPTIONS[0])
 
   useEffect(() => {
     loadPresets()
@@ -87,9 +106,10 @@ export default function PotSetup({ onComplete }) {
   }
 
   function autoAssign() {
-    const shuffled = [...weatherTypes].sort(() => Math.random() - 0.5)
+    const shuffled = [...allTeams].sort(() => Math.random() - 0.5)
+    const selected = shuffled.slice(0, 48) // 48팀만 선택, 나머지 탈락
     const newAssignments = {}
-    shuffled.forEach((team, idx) => {
+    selected.forEach((team, idx) => {
       newAssignments[team.id] = Math.floor(idx / 12) + 1
     })
     setAssignments(newAssignments)
@@ -97,7 +117,7 @@ export default function PotSetup({ onComplete }) {
   }
 
   function autoAssignRemaining() {
-    const unassigned = weatherTypes.filter((t) => !assignments[t.id])
+    const unassigned = allTeams.filter((t) => !assignments[t.id])
     if (unassigned.length === 0) return
     const shuffled = [...unassigned].sort(() => Math.random() - 0.5)
     const potCounts = [1, 2, 3, 4].map(
@@ -141,6 +161,37 @@ export default function PotSetup({ onComplete }) {
       return newA
     })
     setSelectedTeamId(null)
+  }
+
+  function handleAddTeam() {
+    if (!newTeamName.trim() || !newTeamEmoji.trim()) return
+    const newTeam = {
+      id: ++customIdCounter,
+      name: newTeamName.trim(),
+      emoji: newTeamEmoji.trim(),
+      category: newTeamCategory,
+      custom: true,
+    }
+    const updated = [...customTeams, newTeam]
+    setCustomTeams(updated)
+    saveCustomTeams(updated)
+    setNewTeamName('')
+    setNewTeamEmoji('')
+    setNewTeamCategory(CATEGORY_OPTIONS[0])
+    setShowAddTeamModal(false)
+    setSavedToast(`"${newTeam.name}" 추가됨`)
+    setTimeout(() => setSavedToast(''), 2500)
+  }
+
+  function handleRemoveCustomTeam(teamId) {
+    const updated = customTeams.filter((t) => t.id !== teamId)
+    setCustomTeams(updated)
+    saveCustomTeams(updated)
+    setAssignments((prev) => {
+      const newA = { ...prev }
+      delete newA[teamId]
+      return newA
+    })
   }
 
   function handleSave() {
@@ -193,7 +244,7 @@ export default function PotSetup({ onComplete }) {
         await navigator.share({ files: [file], title: '포트 배정 프리셋' })
         shared = true
       } catch (e) {
-        if (e.name === 'AbortError') return // 사용자가 취소
+        if (e.name === 'AbortError') return
       }
     }
     if (!shared) {
@@ -246,14 +297,16 @@ export default function PotSetup({ onComplete }) {
     (p) => Object.values(assignments).filter((v) => v === p).length
   )
   const assignedCount = Object.keys(assignments).length
-  const allAssigned = assignedCount === 48 && potCounts.every((c) => c === 12)
+  const allAssigned = potCounts.every((c) => c === 12)
+  const totalTeams = allTeams.length
+  const unassignedCount = totalTeams - assignedCount
 
   const filteredTeams =
     filterPot === 0
-      ? weatherTypes
+      ? allTeams
       : filterPot === -1
-      ? weatherTypes.filter((t) => !assignments[t.id])
-      : weatherTypes.filter((t) => assignments[t.id] === filterPot)
+      ? allTeams.filter((t) => !assignments[t.id])
+      : allTeams.filter((t) => assignments[t.id] === filterPot)
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -266,7 +319,9 @@ export default function PotSetup({ onComplete }) {
       <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-white">🏆 포트 배정</h1>
-          <p className="text-slate-400 mt-1">48개 팀을 4개 포트에 각 12팀씩 배정하세요</p>
+          <p className="text-slate-400 mt-1">
+            각 포트에 12팀씩 배정 · 전체 {totalTeams}팀 중 {assignedCount}팀 배정됨 (미배정 {unassignedCount}팀 탈락)
+          </p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
@@ -284,10 +339,16 @@ export default function PotSetup({ onComplete }) {
           </button>
           <button
             onClick={autoAssignRemaining}
-            disabled={assignedCount === 48}
+            disabled={allAssigned}
             className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white rounded-xl text-sm transition-colors"
           >
             ✨ 나머지 자동
+          </button>
+          <button
+            onClick={() => setShowAddTeamModal(true)}
+            className="px-3 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-sm transition-colors"
+          >
+            ➕ 팀 추가
           </button>
           <button
             onClick={() => setShowSaveModal(true)}
@@ -309,7 +370,7 @@ export default function PotSetup({ onComplete }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[1, 2, 3, 4].map((pot) => {
           const color = POT_COLORS[pot]
-          const teams = weatherTypes.filter((t) => assignments[t.id] === pot)
+          const teams = allTeams.filter((t) => assignments[t.id] === pot)
           const count = teams.length
           const isFull = count === 12
 
@@ -320,7 +381,6 @@ export default function PotSetup({ onComplete }) {
                 ${isFull ? `${color.jarBorder} ${color.jarBg} shadow-lg ${color.jarGlow}` : 'border-slate-700 bg-slate-800/40'}
               `}
             >
-              {/* Jar top rim */}
               <div
                 className={`px-4 py-2 flex items-center justify-between border-b ${isFull ? color.jarBorder : 'border-slate-700'}`}
               >
@@ -338,7 +398,6 @@ export default function PotSetup({ onComplete }) {
                 </span>
               </div>
 
-              {/* Jar body */}
               <div className="p-2 min-h-[180px] flex flex-wrap gap-1 content-start">
                 {teams.length === 0 && (
                   <div className="w-full h-32 flex items-center justify-center">
@@ -364,7 +423,6 @@ export default function PotSetup({ onComplete }) {
                 ))}
               </div>
 
-              {/* Progress bar at the bottom */}
               <div className="px-3 pb-3">
                 <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
                   <div
@@ -383,8 +441,8 @@ export default function PotSetup({ onComplete }) {
       {/* Filter tabs */}
       <div className="flex gap-2 mb-4 flex-wrap">
         {[
-          { label: '전체', value: 0, count: 48 },
-          { label: '미배정', value: -1, count: 48 - assignedCount },
+          { label: '전체', value: 0, count: totalTeams },
+          { label: '미배정', value: -1, count: unassignedCount },
           { label: '포트 1', value: 1, count: potCounts[0] },
           { label: '포트 2', value: 2, count: potCounts[1] },
           { label: '포트 3', value: 3, count: potCounts[2] },
@@ -427,8 +485,9 @@ export default function PotSetup({ onComplete }) {
                 className={`w-full aspect-square rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all duration-150
                   ${pot ? `${color.bg} border-2 ${color.border}` : 'bg-slate-800 border-2 border-slate-700'}
                   ${isSelected ? 'ring-2 ring-white scale-110 z-10' : 'hover:scale-105'}
+                  ${team.custom ? 'ring-1 ring-violet-500/40' : ''}
                 `}
-                title={`${team.emoji} ${team.name}${pot ? ` — 포트 ${pot}` : ' — 미배정'}`}
+                title={`${team.emoji} ${team.name}${pot ? ` — 포트 ${pot}` : ' — 미배정'}${team.custom ? ' (추가됨)' : ''}`}
               >
                 <span className="text-xl leading-none">{team.emoji}</span>
                 <span className="text-[9px] text-slate-300 leading-tight px-0.5 truncate w-full text-center">
@@ -468,6 +527,15 @@ export default function PotSetup({ onComplete }) {
                       ✕
                     </button>
                   )}
+                  {team.custom && (
+                    <button
+                      onClick={() => { handleRemoveCustomTeam(team.id); setSelectedTeamId(null) }}
+                      className="w-8 h-8 rounded-xl text-xs border-2 bg-violet-900/40 border-violet-600/60 text-violet-400 hover:scale-110 transition-all"
+                      title="팀 삭제"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -479,13 +547,17 @@ export default function PotSetup({ onComplete }) {
       <div className="text-center pb-8">
         {!allAssigned && (
           <p className="text-slate-500 text-sm mb-3">
-            {48 - assignedCount > 0 && `${48 - assignedCount}개 팀이 아직 배정되지 않았습니다. `}
-            {potCounts.some((c) => c !== 12) &&
-              '각 포트에 정확히 12팀이 필요합니다.'}
+            {potCounts.map((c, i) => c !== 12 ? `포트 ${i+1}: ${c}/12` : null).filter(Boolean).join(' · ')}
+            {potCounts.some((c) => c !== 12) && ' — 각 포트에 정확히 12팀이 필요합니다.'}
+          </p>
+        )}
+        {allAssigned && unassignedCount > 0 && (
+          <p className="text-slate-500 text-sm mb-3">
+            {unassignedCount}개 팀은 배정되지 않아 탈락합니다.
           </p>
         )}
         <button
-          onClick={() => { clearPotDraft(); onComplete(assignments) }}
+          onClick={() => { clearPotDraft(); onComplete(assignments, allTeams) }}
           disabled={!allAssigned}
           className="px-10 py-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-bold rounded-2xl text-xl transition-all hover:scale-105 disabled:hover:scale-100 shadow-lg"
         >
@@ -499,6 +571,64 @@ export default function PotSetup({ onComplete }) {
           className="fixed inset-0 z-20"
           onClick={() => setSelectedTeamId(null)}
         />
+      )}
+
+      {/* Add Team Modal */}
+      {showAddTeamModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-80 shadow-2xl">
+            <h3 className="text-white font-bold text-lg mb-4">➕ 팀 추가</h3>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="text-slate-400 text-xs mb-1 block">팀 이름</label>
+                <input
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddTeam()}
+                  placeholder="예: 천둥번개"
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-500 text-white rounded-xl outline-none focus:border-violet-400 transition-colors"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 text-xs mb-1 block">이모지</label>
+                <input
+                  value={newTeamEmoji}
+                  onChange={(e) => setNewTeamEmoji(e.target.value)}
+                  placeholder="예: ⚡"
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-500 text-white rounded-xl outline-none focus:border-violet-400 transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 text-xs mb-1 block">계열</label>
+                <select
+                  value={newTeamCategory}
+                  onChange={(e) => setNewTeamCategory(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-500 text-white rounded-xl outline-none focus:border-violet-400 transition-colors"
+                >
+                  {CATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowAddTeamModal(false); setNewTeamName(''); setNewTeamEmoji('') }}
+                className="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl text-sm transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleAddTeam}
+                disabled={!newTeamName.trim() || !newTeamEmoji.trim()}
+                className="flex-1 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                추가
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Save Modal */}
@@ -540,7 +670,6 @@ export default function PotSetup({ onComplete }) {
       {showLoadModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-[26rem] max-h-[80vh] flex flex-col shadow-2xl">
-            {/* Modal header */}
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-white font-bold text-lg">📂 프리셋 불러오기</h3>
               <label className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg text-xs cursor-pointer transition-colors">
@@ -549,7 +678,6 @@ export default function PotSetup({ onComplete }) {
               </label>
             </div>
 
-            {/* Bulk action bar */}
             {presets.length > 0 && (
               <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-700">
                 <input

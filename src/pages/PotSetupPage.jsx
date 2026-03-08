@@ -10,11 +10,11 @@ export default function PotSetupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  async function handleComplete(potAssignments) {
+  async function handleComplete(potAssignments, allTeams) {
     setLoading(true)
     setError(null)
     try {
-      await initializeTournament('날씨 월드컵 시즌 1', potAssignments)
+      await initializeTournament('날씨 월드컵 시즌 1', potAssignments, allTeams)
       clearPotDraft()
       setHasActiveTournament(true)
       navigate('/worldcup')

@@ -94,6 +94,10 @@ CREATE POLICY "public read chat"          ON chat_messages  FOR SELECT USING (tr
 -- Public insert for chat
 CREATE POLICY "public insert chat" ON chat_messages FOR INSERT WITH CHECK (true);
 
+-- weather_teams: 대회 생성 시 신규 팀 upsert 허용
+CREATE POLICY "public insert weather_teams" ON weather_teams FOR INSERT WITH CHECK (true);
+CREATE POLICY "public update weather_teams" ON weather_teams FOR UPDATE USING (true);
+
 -- ─── Pot Presets ──────────────────────────────────────────────────────────────
 CREATE TABLE pot_presets (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -110,7 +114,21 @@ CREATE POLICY "public delete pot_presets" ON pot_presets FOR DELETE USING (true)
 -- ─── Realtime ─────────────────────────────────────────────────────────────────
 -- Supabase 대시보드에서 matches, chat_messages 테이블의 Replication을 활성화하세요.
 
--- ─── Seed: Weather Teams (48팀) ───────────────────────────────────────────────
+-- ─── 이름 중복 방지 (upsert onConflict 사용을 위해 필요) ────────────────────
+ALTER TABLE weather_teams ADD CONSTRAINT weather_teams_name_unique UNIQUE (name);
+
+-- ─── Seed: Weather Teams (54팀) ───────────────────────────────────────────────
+-- 아래 SQL을 Supabase 대시보드에서 실행하세요 (기존 48팀 + 신규 6팀)
+-- 신규 6팀만 추가할 경우:
+-- INSERT INTO weather_teams (name, emoji, category) VALUES
+--   ('방사능', '☢️', '재해 계열'),
+--   ('산사태', '⛰️', '재해 계열'),
+--   ('싱크홀', '🕳️', '재해 계열'),
+--   ('빙하', '🧊', '재해 계열'),
+--   ('천둥번개', '⚡', '강수 계열'),
+--   ('광역성비', '🌧️', '강수 계열')
+-- ON CONFLICT (name) DO NOTHING;
+
 INSERT INTO weather_teams (name, emoji, category) VALUES
   -- 강수 계열
   ('비', '🌧️', '강수 계열'),
@@ -164,4 +182,11 @@ INSERT INTO weather_teams (name, emoji, category) VALUES
   ('화산재', '🌋', '재해 계열'),
   ('해일', '🌊', '재해 계열'),
   ('가뭄', '🏜️', '재해 계열'),
-  ('쓰나미', '🌊', '재해 계열');
+  ('쓰나미', '🌊', '재해 계열'),
+  -- 신규 6팀
+  ('방사능', '☢️', '재해 계열'),
+  ('산사태', '⛰️', '재해 계열'),
+  ('싱크홀', '🕳️', '재해 계열'),
+  ('빙하', '🧊', '재해 계열'),
+  ('천둥번개', '⚡', '강수 계열'),
+  ('광역성비', '🌧️', '강수 계열');

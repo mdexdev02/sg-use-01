@@ -38,22 +38,35 @@ export async function getActiveTournament() {
 }
 
 // 토너먼트 + 조 편성 + 매치 한 번에 생성
-// potAssignments: { [teamId]: 1|2|3|4 } — null이면 완전 랜덤 추첨
-export async function initializeTournament(name, potAssignments = null) {
+// potAssignments: { [frontendTeamId]: 1|2|3|4 }
+// frontendTeams: weatherTypes + customTeams 전체 목록
+export async function initializeTournament(name, potAssignments = null, frontendTeams = []) {
   const tournament = await createTournament(name)
 
-  // DB에서 날씨팀 목록 가져오기
-  const { data: teams, error: teamsError } = await supabase
+  // 배정된 프론트엔드 팀 목록 추출
+  const assignedFrontendTeams = frontendTeams.filter(
+    (t) => potAssignments && (potAssignments[t.id] !== undefined || potAssignments[String(t.id)] !== undefined)
+  )
+
+  // DB에 없는 팀은 upsert (이름 기반 — 중복 방지)
+  if (assignedFrontendTeams.length > 0) {
+    await supabase.from('weather_teams').upsert(
+      assignedFrontendTeams.map((t) => ({ name: t.name, emoji: t.emoji, category: t.category })),
+      { onConflict: 'name', ignoreDuplicates: true }
+    )
+  }
+
+  // DB에서 이름 → id 매핑 (이름 기반 매칭으로 serial ID 불일치 버그 수정)
+  const { data: dbTeams, error: teamsError } = await supabase
     .from('weather_teams')
     .select('*')
     .order('id')
   if (teamsError) throw teamsError
 
+  const nameToDbTeam = new Map(dbTeams.map((t) => [t.name, t]))
+
   const groupCount = 12
 
-  // 포트 배정이 있으면 FIFA식 조 추첨 (각 조에 포트별 1팀씩)
-  // 없으면 기존 랜덤 셔플
-  // 강수계열 최대 2팀, 나머지 계열 최대 1팀 제약 조건 적용
   const RAIN_CATEGORY = '강수 계열'
   const MAX_RAIN = 2
   const MAX_OTHER_CATEGORY = 1
@@ -75,7 +88,6 @@ export async function initializeTournament(name, potAssignments = null) {
         return candidate.map((g) => g.sort(() => Math.random() - 0.5))
       }
     }
-    // 300회 시도 후 제약 없이 반환 (최후 수단)
     const shuffledPots = pots.map((pot) => [...pot].sort(() => Math.random() - 0.5))
     return Array.from({ length: groupCount }, (_, i) =>
       shuffledPots.map((pot) => pot[i]).filter(Boolean).sort(() => Math.random() - 0.5)
@@ -83,13 +95,18 @@ export async function initializeTournament(name, potAssignments = null) {
   }
 
   let groupTeamsArray
-  if (potAssignments) {
+  if (potAssignments && assignedFrontendTeams.length > 0) {
+    // 프론트엔드 팀 → DB 팀 매핑 (이름 기반)
     const pots = [1, 2, 3, 4].map((p) =>
-      teams.filter((t) => potAssignments[String(t.id)] === p || potAssignments[t.id] === p)
+      assignedFrontendTeams
+        .filter((ft) => potAssignments[ft.id] === p || potAssignments[String(ft.id)] === p)
+        .map((ft) => nameToDbTeam.get(ft.name))
+        .filter(Boolean)
     )
     groupTeamsArray = buildGroupTeamsArray(pots)
   } else {
-    const shuffled = [...teams].sort(() => Math.random() - 0.5)
+    // potAssignments 없으면 DB 전체 랜덤 (48팀 기준)
+    const shuffled = [...dbTeams].sort(() => Math.random() - 0.5).slice(0, 48)
     groupTeamsArray = Array.from({ length: groupCount }, (_, i) =>
       shuffled.slice(i * 4, (i + 1) * 4)
     )
