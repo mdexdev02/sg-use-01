@@ -182,6 +182,13 @@ export default function PotSetup({ onComplete }) {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button
+            onClick={() => { setAssignments({}); setSelectedTeamId(null) }}
+            disabled={assignedCount === 0}
+            className="px-3 py-2 bg-red-900/50 hover:bg-red-800/70 disabled:opacity-40 text-red-300 rounded-xl text-sm transition-colors"
+          >
+            🗑️ 모두 지우기
+          </button>
+          <button
             onClick={autoAssign}
             className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-sm transition-colors"
           >
