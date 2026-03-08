@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import MatchVote from '../components/worldcup/MatchVote'
 import GroupStandings from '../components/worldcup/GroupStandings'
 import ChatRoom from '../components/chat/ChatRoom'
-import PotSetup, { clearPotDraft } from '../components/worldcup/PotSetup'
-import { getActiveTournament, getMatches, initializeTournament, completeTournament } from '../lib/supabase'
+import { getActiveTournament, getMatches, completeTournament } from '../lib/supabase'
+import { useTournament } from '../context/TournamentContext'
 
 const GUEST_NAME = `날씨인#${Math.floor(Math.random() * 9000) + 1000}`
 
@@ -76,6 +77,8 @@ function normalizeMatch(m) {
 }
 
 export default function WorldCup() {
+  const navigate = useNavigate()
+  const { setHasActiveTournament } = useTournament()
   const [tournament, setTournament] = useState(null)
   const [groups, setGroups] = useState([])
   const [allMatches, setAllMatches] = useState([])
@@ -85,7 +88,6 @@ export default function WorldCup() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [chatOpen, setChatOpen] = useState(true)
-  const [showPotSetup, setShowPotSetup] = useState(false)
 
   useEffect(() => {
     initTournament()
@@ -97,10 +99,9 @@ export default function WorldCup() {
     try {
       const active = await getActiveTournament()
 
-      // 활성 토너먼트가 없으면 포트 배정 화면 표시
+      // 활성 토너먼트가 없으면 포트 배정 페이지로 이동
       if (!active) {
-        setShowPotSetup(true)
-        setLoading(false)
+        navigate('/potsetup', { replace: true })
         return
       }
 
@@ -129,21 +130,6 @@ export default function WorldCup() {
     }
   }
 
-  async function handlePotSetupComplete(potAssignments) {
-    setShowPotSetup(false)
-    setLoading(true)
-    setError(null)
-    try {
-      const active = await initializeTournament('날씨 월드컵 시즌 1', potAssignments)
-      await loadTournamentData(active)
-    } catch (e) {
-      console.error(e)
-      setError('토너먼트 생성에 실패했습니다. 다시 시도해주세요.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function handleNewTournament() {
     if (!confirm('현재 대회를 종료하고 새 대회를 시작할까요?')) return
     if (tournament) {
@@ -154,12 +140,12 @@ export default function WorldCup() {
         console.error(e)
       }
     }
-    clearPotDraft()
     setTournament(null)
     setAllMatches([])
     setGroups([])
     setCurrentMatchIdx(0)
-    setShowPotSetup(true)
+    setHasActiveTournament(false)
+    navigate('/potsetup')
   }
 
   const handleVoted = useCallback(
@@ -200,10 +186,6 @@ export default function WorldCup() {
   )
 
   const progress = allMatches.length > 0 ? (currentMatchIdx / allMatches.length) * 100 : 0
-
-  if (showPotSetup) {
-    return <PotSetup onComplete={handlePotSetupComplete} />
-  }
 
   if (loading) {
     return (

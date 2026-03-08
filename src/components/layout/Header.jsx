@@ -1,14 +1,21 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useTournament } from '../../context/TournamentContext'
 
-const navItems = [
+const staticNavItems = [
   { to: '/', label: '홈', emoji: '🏠' },
-  { to: '/worldcup', label: '월드컵', emoji: '🏆' },
   { to: '/bracket', label: '대진표', emoji: '📊' },
   { to: '/results', label: '결과', emoji: '🥇' },
 ]
 
 export default function Header() {
   const { pathname } = useLocation()
+  const { hasActiveTournament } = useTournament()
+
+  const tournamentNav = hasActiveTournament
+    ? { to: '/worldcup', label: '월드컵', emoji: '🏆' }
+    : { to: '/potsetup', label: '포트배정', emoji: '⚙️' }
+
+  const navItems = [staticNavItems[0], tournamentNav, ...staticNavItems.slice(1)]
 
   return (
     <header className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur border-b border-slate-800">
